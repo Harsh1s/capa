@@ -4,6 +4,7 @@ PROJECT = "capa"
 CASES = [
     {"date": "2025-06-01", "seed": 350325},
     {"date": "2025-06-14", "seed": 337358},
+    {"date": "2025-06-15", "seed": 361843},
 ]
 
 def case_count():
