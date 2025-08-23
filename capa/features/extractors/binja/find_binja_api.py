@@ -91,22 +91,41 @@ def get_binaryninja_path(desktop_entry: Path) -> Optional[Path]:
 
 
 def validate_binaryninja_path(binaryninja_path: Path) -> bool:
+    return get_binaryninja_module_path(binaryninja_path) is not None
+
+
+def get_binaryninja_module_path(binaryninja_path: Path) -> Optional[Path]:
     if not binaryninja_path:
-        return False
+        return None
+
+    if (binaryninja_path / "binaryninja" / "__init__.py").is_file():
+        return binaryninja_path
 
     module_path = binaryninja_path / "python"
-    if not module_path.is_dir():
-        return False
+    if (module_path / "binaryninja" / "__init__.py").is_file():
+        return module_path
 
-    if not (module_path / "binaryninja" / "__init__.py").is_file():
-        return False
+    return None
 
-    return True
+
+def get_default_binaryninja_paths() -> list[Path]:
+    if sys.platform == "darwin":
+        return [Path("/Applications/Binary Ninja.app/Contents/Resources")]
+    if sys.platform == "win32":
+        return [Path(os.environ.get("PROGRAMFILES", "C:/Program Files")) / "Vector35" / "BinaryNinja"]
+    return []
 
 
 def find_binaryninja() -> Optional[Path]:
     binaryninja_path = find_binaryninja_path_via_subprocess()
-    if not binaryninja_path or not validate_binaryninja_path(binaryninja_path):
+    binaryninja_module_path = get_binaryninja_module_path(binaryninja_path) if binaryninja_path else None
+    if not binaryninja_module_path:
+        for default_path in get_default_binaryninja_paths():
+            binaryninja_module_path = get_binaryninja_module_path(default_path)
+            if binaryninja_module_path:
+                break
+
+    if not binaryninja_module_path:
         if sys.platform == "linux" or sys.platform == "linux2":
             # ok
             logger.debug("detected OS: linux")
@@ -131,13 +150,14 @@ def find_binaryninja() -> Optional[Path]:
             logger.debug("failed to determine Binary Ninja installation path")
             return None
 
-        if not validate_binaryninja_path(binaryninja_path):
+        binaryninja_module_path = get_binaryninja_module_path(binaryninja_path)
+        if not binaryninja_module_path:
             logger.debug("failed to validate Binary Ninja installation")
             return None
 
-    logger.debug("found Binary Ninja installation: %s", binaryninja_path)
+    logger.debug("found Binary Ninja API: %s", binaryninja_module_path)
 
-    return binaryninja_path / "python"
+    return binaryninja_module_path
 
 
 def is_binaryninja_installed() -> bool:
