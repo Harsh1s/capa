@@ -185,6 +185,14 @@ def test_serialize_features():
     roundtrip_feature(capa.features.insn.Property("System.IO.FileInfo::Length"))
 
 
+def test_import_feature_freeze_uses_alias():
+    feature = capa.features.freeze.features.ImportFeature(import_="kernel32.IsWow64Process")
+    frozen = feature.model_dump_json()
+    assert '"import"' in frozen
+    assert '"import_"' not in frozen
+    assert capa.features.freeze.features.ImportFeature.model_validate_json(frozen).import_ == "kernel32.IsWow64Process"
+
+
 def test_no_address_lt_irreflexivity():
     no_addr = capa.features.freeze.Address.from_capa(capa.features.address.NO_ADDRESS)
     assert not (no_addr < no_addr)

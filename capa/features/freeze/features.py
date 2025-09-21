@@ -23,7 +23,7 @@ import capa.features.basicblock
 
 
 class FeatureModel(BaseModel):
-    model_config = ConfigDict(frozen=True, populate_by_name=True)
+    model_config = ConfigDict(frozen=True, populate_by_name=True, serialize_by_alias=True)
 
     def to_capa(self) -> capa.features.common.Feature:
         if isinstance(self, OSFeature):
