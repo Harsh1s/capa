@@ -86,10 +86,10 @@ def render_meta(doc: rd.ResultDocument, console: Console):
 
 def find_subrule_matches(doc: rd.ResultDocument):
     """
-    collect the rule names that have been matched as a subrule match.
+    collect the rule names and locations that have been matched as a subrule match.
     this way we can avoid displaying entries for things that are too specific.
     """
-    matches = set()
+    matches = collections.defaultdict(set)
 
     def rec(match: rd.Match):
         if not match.success:
@@ -102,13 +102,25 @@ def find_subrule_matches(doc: rd.ResultDocument):
                 rec(child)
 
         elif isinstance(match.node, rd.FeatureNode) and isinstance(match.node.feature, frzf.MatchFeature):
-            matches.add(match.node.feature.match)
+            matches[match.node.feature.match].update(match.locations)
 
     for rule in rutils.capability_rules(doc):
         for _, match in rule.matches:
             rec(match)
 
     return matches
+
+
+def get_visible_matches(rule: rd.RuleMatches, subrule_matches):
+    if rule.meta.name not in subrule_matches:
+        return rule.matches
+
+    covered_locations = subrule_matches[rule.meta.name]
+    return tuple(
+        (address, match)
+        for address, match in rule.matches
+        if not set(match.locations).issubset(covered_locations)
+    )
 
 
 def render_rule_name(name: str) -> str:
@@ -132,13 +144,14 @@ def render_capabilities(doc: rd.ResultDocument, console: Console):
 
     rows = []
     for rule in rutils.capability_rules(doc):
-        if rule.meta.name in subrule_matches:
+        visible_matches = get_visible_matches(rule, subrule_matches)
+        if not visible_matches:
             # rules that are also matched by other rules should not get rendered by default.
             # this cuts down on the amount of output while giving approx the same detail.
             # see #224
             continue
 
-        count = len(rule.matches)
+        count = len(visible_matches)
         if count == 1:
             capability = render_rule_name(rule.meta.name)
         else:

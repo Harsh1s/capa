@@ -262,3 +262,85 @@ def test_render_default_returns_non_empty():
     assert output != ""
     assert "md5" in output
     assert "290934c61de9176ad682ffdd65f0a669" in output
+
+
+def make_capability_rule(name: str, namespace: str = "test") -> capa.rules.Rule:
+    return capa.rules.Rule.from_yaml(
+        textwrap.dedent(
+            f"""
+            rule:
+              meta:
+                name: {name}
+                namespace: {namespace}
+                scopes:
+                  static: function
+                  dynamic: unsupported
+                authors:
+                  - test
+              features:
+                - number: 1
+            """
+        )
+    )
+
+
+def make_address(value: int) -> capa.features.freeze.Address:
+    return capa.features.freeze.Address(
+        type=capa.features.freeze.AddressType.ABSOLUTE,
+        value=value,
+    )
+
+
+def make_feature_match(feature, address: capa.features.freeze.Address) -> rd.Match:
+    return rd.Match(
+        success=True,
+        node=rd.FeatureNode(feature=feature),
+        children=(),
+        locations=(address,),
+        captures={},
+    )
+
+
+def test_render_default_keeps_independent_subrule_matches():
+    covered_location = make_address(0x401000)
+    independent_location = make_address(0x402000)
+    parent_rule = make_capability_rule("rule_a")
+    subrule = make_capability_rule("rule_b")
+    parent_match = make_feature_match(
+        capa.features.freeze.features.MatchFeature(match="rule_b"),
+        covered_location,
+    )
+    covered_subrule_match = make_feature_match(
+        capa.features.freeze.features.NumberFeature(number=1),
+        covered_location,
+    )
+    independent_subrule_match = make_feature_match(
+        capa.features.freeze.features.NumberFeature(number=2),
+        independent_location,
+    )
+
+    mock_doc = Mock(spec=rd.ResultDocument)
+    mock_doc.rules = {
+        "rule_a": rd.RuleMatches(
+            meta=rd.RuleMetadata.from_capa(parent_rule),
+            source=parent_rule.definition,
+            matches=((covered_location, parent_match),),
+        ),
+        "rule_b": rd.RuleMatches(
+            meta=rd.RuleMetadata.from_capa(subrule),
+            source=subrule.definition,
+            matches=(
+                (covered_location, covered_subrule_match),
+                (independent_location, independent_subrule_match),
+            ),
+        ),
+    }
+
+    output = io.StringIO()
+    console = Console(file=output)
+    capa.render.default.render_capabilities(mock_doc, console)
+    rendered = output.getvalue()
+
+    assert "rule_a" in rendered
+    assert "rule_b" in rendered
+    assert "rule_b (2 matches)" not in rendered
