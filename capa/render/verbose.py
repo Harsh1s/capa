@@ -149,7 +149,10 @@ def render_call(layout: rd.DynamicLayout, addr: frz.Address) -> str:
     assert isinstance(call, capa.features.address.DynamicCallAddress)
 
     pname = _get_process_name(layout, frz.Address.from_capa(call.thread.process))
-    cname = _get_call_name(layout, addr)
+    try:
+        cname = _get_call_name(layout, addr)
+    except ValueError:
+        return format_address(addr)
 
     fname, _, rest = cname.partition("(")
     args, _, rest = rest.rpartition(")")
@@ -169,7 +172,10 @@ def render_short_call(layout: rd.DynamicLayout, addr: frz.Address) -> str:
     call = addr.to_capa()
     assert isinstance(call, capa.features.address.DynamicCallAddress)
 
-    cname = _get_call_name(layout, addr)
+    try:
+        cname = _get_call_name(layout, addr)
+    except ValueError:
+        return f"call:{call.id}"
 
     fname, _, rest = cname.partition("(")
     args, _, rest = rest.rpartition(")")

@@ -254,6 +254,57 @@ def test_render_vverbose_feature(feature, expected):
     assert output == expected
 
 
+def make_dynamic_call_address(call_id: int = 1) -> capa.features.freeze.Address:
+    return capa.features.freeze.Address.from_capa(
+        capa.features.address.DynamicCallAddress(
+            thread=capa.features.address.ThreadAddress(
+                process=capa.features.address.ProcessAddress(pid=2652, ppid=1476),
+                tid=1948,
+            ),
+            id=call_id,
+        )
+    )
+
+
+def make_dynamic_layout_without_calls() -> rd.DynamicLayout:
+    process_address = capa.features.freeze.Address.from_capa(
+        capa.features.address.ProcessAddress(pid=2652, ppid=1476)
+    )
+    thread_address = capa.features.freeze.Address.from_capa(
+        capa.features.address.ThreadAddress(
+            process=capa.features.address.ProcessAddress(pid=2652, ppid=1476),
+            tid=1948,
+        )
+    )
+    return rd.DynamicLayout(
+        processes=(
+            rd.ProcessLayout(
+                address=process_address,
+                name="sample.exe",
+                matched_threads=(rd.ThreadLayout(address=thread_address, matched_calls=()),),
+            ),
+        )
+    )
+
+
+def test_render_call_handles_missing_call_name():
+    rendered = capa.render.verbose.render_call(
+        make_dynamic_layout_without_calls(),
+        make_dynamic_call_address(52762),
+    )
+
+    assert rendered == "process{pid:2652,tid:1948,call:52762}"
+
+
+def test_render_short_call_handles_missing_call_name():
+    rendered = capa.render.verbose.render_short_call(
+        make_dynamic_layout_without_calls(),
+        make_dynamic_call_address(52762),
+    )
+
+    assert rendered == "call:52762"
+
+
 def test_render_default_returns_non_empty():
     rd = capa.render.result_document.ResultDocument.from_file(
         fixtures.CD / "data" / "rd" / "Practical Malware Analysis Lab 01-01.dll_.json"
