@@ -27,16 +27,12 @@ import capa.rules
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-input_directory = Path(sys.argv[1])
-txt_file_path = Path(sys.argv[2])
-output_directory = Path(sys.argv[3])
-
-assert input_directory.exists(), "input directory must exist"
-assert txt_file_path.exists(), "file-modification txt file must exist"
-assert output_directory.exists(), "output directory must exist"
+def get_github_rule_link(input_dir: Path, path: Path) -> str:
+    source_path = path.relative_to(input_dir).as_posix()
+    return f"https://github.com/mandiant/capa-rules/tree/master/{source_path}"
 
 
-def render_rule(timestamps, path: Path) -> str:
+def render_rule(input_directory: Path, timestamps, path: Path) -> str:
     rule_content = path.read_text(encoding="utf-8")
     rule = capa.rules.Rule.from_yaml(rule_content, use_ruamel=True)
 
@@ -55,7 +51,7 @@ def render_rule(timestamps, path: Path) -> str:
         ),
     )
 
-    gh_link = f"https://github.com/mandiant/capa-rules/tree/master/{namespace}/{filename}.yml"
+    gh_link = get_github_rule_link(input_directory, path)
     vt_query = 'behavior_signature:"' + rule.name + '"'
     vt_fragment = urllib.parse.quote(urllib.parse.quote(vt_query))
     vt_link = f"https://www.virustotal.com/gui/search/{vt_fragment}/files"
@@ -125,54 +121,65 @@ def render_rule(timestamps, path: Path) -> str:
     return html_content
 
 
-yaml_files = [
-    str(p)
-    for p in input_directory.glob("**/*.yml")
-    if not any(part.startswith(".") for part in p.relative_to(input_directory).parts)
-]
+def main() -> None:
+    input_directory = Path(sys.argv[1])
+    txt_file_path = Path(sys.argv[2])
+    output_directory = Path(sys.argv[3])
 
-timestamps = {}
-for line in txt_file_path.read_text(encoding="utf-8").splitlines():
-    if not line:
-        continue
-    if line.startswith("==="):
-        continue
+    assert input_directory.exists(), "input directory must exist"
+    assert txt_file_path.exists(), "file-modification txt file must exist"
+    assert output_directory.exists(), "output directory must exist"
 
-    filepath, _, timestamp = line.partition(" ")
-    timestamps[filepath] = timestamp
+    yaml_files = [
+        str(p)
+        for p in input_directory.glob("**/*.yml")
+        if not any(part.startswith(".") for part in p.relative_to(input_directory).parts)
+    ]
+
+    timestamps = {}
+    for line in txt_file_path.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        if line.startswith("==="):
+            continue
+
+        filepath, _, timestamp = line.partition(" ")
+        timestamps[filepath] = timestamp
+
+    for yaml_file in yaml_files:
+        path = Path(yaml_file)
+        html_content = render_rule(input_directory, timestamps, path)
+        rule = capa.rules.Rule.from_yaml(path.read_text(encoding="utf-8"), use_ruamel=True)
+
+        # like: rules/create file/index.html
+        #
+        # which looks like the URL fragments:
+        #
+        #     rules/create%20file/index.html
+        #     rules/create%20file/
+        #     rules/create file/
+        html_path = output_directory / rule.name / "index.html"
+        html_path.parent.mkdir(parents=True, exist_ok=True)
+        html_path.write_text(html_content, encoding="utf-8")
+        logger.info("wrote: %s", html_path)
+
+        # like: create-file
+        rule_id = path.with_suffix("").name
+        # like: rules/create-file/index.html
+        #
+        # which looks like the URL fragments:
+        #
+        #     rules/create-file/index.html
+        #     rules/create-file/
+        #
+        # and redirects, via meta refresh, to the canonical path above.
+        # since we don't control the GH Pages web server, we can't use HTTP redirects.
+        id_path = output_directory / rule_id / "index.html"
+        id_path.parent.mkdir(parents=True, exist_ok=True)
+        redirect = f"""<html><head><meta http-equiv="refresh" content="0; url=../{rule.name}/"></head></html>"""
+        id_path.write_text(redirect, encoding="utf-8")
+        logger.info("wrote: %s", id_path)
 
 
-for yaml_file in yaml_files:
-    path = Path(yaml_file)
-    rule_content = path.read_text(encoding="utf-8")
-    html_content = render_rule(timestamps, path)
-    rule = capa.rules.Rule.from_yaml(path.read_text(encoding="utf-8"), use_ruamel=True)
-
-    # like: rules/create file/index.html
-    #
-    # which looks like the URL fragments:
-    #
-    #     rules/create%20file/index.html
-    #     rules/create%20file/
-    #     rules/create file/
-    html_path = output_directory / rule.name / "index.html"
-    html_path.parent.mkdir(parents=True, exist_ok=True)
-    html_path.write_text(html_content, encoding="utf-8")
-    logger.info("wrote: %s", html_path)
-
-    # like: create-file
-    rule_id = path.with_suffix("").name
-    # like: rules/create-file/index.html
-    #
-    # which looks like the URL fragments:
-    #
-    #     rules/create-file/index.html
-    #     rules/create-file/
-    #
-    # and redirects, via meta refresh, to the canonical path above.
-    # since we don't control the GH Pages web server, we can't use HTTP redirects.
-    id_path = output_directory / rule_id / "index.html"
-    id_path.parent.mkdir(parents=True, exist_ok=True)
-    redirect = f"""<html><head><meta http-equiv="refresh" content="0; url=../{rule.name}/"></head></html>"""
-    id_path.write_text(redirect, encoding="utf-8")
-    logger.info("wrote: %s", id_path)
+if __name__ == "__main__":
+    main()
