@@ -102,6 +102,11 @@ class RuleCache:
         return cache
 
 
+def validate_cached_ruleset(ruleset: capa.rules.RuleSet):
+    for index in ruleset._feature_indexes_by_scopes.values():
+        assert hasattr(index, "bytes_prefix_index")
+
+
 def get_ruleset_content(ruleset: capa.rules.RuleSet) -> list[bytes]:
     rule_contents = []
     for rule in ruleset.rules.values():
@@ -161,6 +166,13 @@ def load_cached_ruleset(cache_dir: Path, rule_contents: list[bytes]) -> Optional
     except AssertionError:
         logger.debug("rule set cache is invalid: %s", path)
         # delete the cache that seems to be invalid.
+        path.unlink()
+        return None
+
+    try:
+        validate_cached_ruleset(cache.ruleset)
+    except AssertionError:
+        logger.debug("rule set cache schema is stale: %s", path)
         path.unlink()
         return None
 

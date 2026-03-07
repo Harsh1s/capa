@@ -121,6 +121,27 @@ def test_ruleset_cache_invalid():
     assert not path.exists()
 
 
+def test_ruleset_cache_stale_feature_index_schema():
+    rs = capa.rules.RuleSet([R1])
+    content = capa.rules.cache.get_ruleset_content(rs)
+    id = capa.rules.cache.compute_cache_identifier(content)
+    cache_dir = capa.rules.cache.get_default_cache_directory()
+    path = capa.rules.cache.get_cache_path(cache_dir, id)
+    with contextlib.suppress(OSError):
+        path.unlink()
+
+    capa.rules.cache.cache_ruleset(cache_dir, rs)
+    assert path.exists()
+
+    stale_cache = capa.rules.cache.RuleCache.load(path.read_bytes())
+    for index in stale_cache.ruleset._feature_indexes_by_scopes.values():
+        del index.bytes_prefix_index
+    path.write_bytes(stale_cache.dump())
+
+    assert capa.rules.cache.load_cached_ruleset(cache_dir, content) is None
+    assert not path.exists()
+
+
 def test_rule_cache_dev_environment():
     # generate rules cache
     rs = capa.rules.RuleSet([R2])
