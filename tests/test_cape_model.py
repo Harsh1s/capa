@@ -20,11 +20,17 @@ import fixtures
 
 from capa.exceptions import EmptyReportError, UnsupportedFormatError
 from capa.features.address import ThreadAddress, ProcessAddress
+from capa.features.extractors.cape.extractor import TESTED_VERSIONS
 from capa.features.extractors.cape.models import Call, CapeReport
 from capa.features.extractors.cape.thread import get_calls
 from capa.features.extractors.base_extractor import ThreadHandle, ProcessHandle
 
 CAPE_DIR = fixtures.CD / "data" / "dynamic" / "cape"
+
+
+def test_supported_cape_versions_include_self_hosted_strings():
+    for version in ("2.2", "2.4", "2.5", "2.2-CAPE", "2.4-CAPE", "2.5-CAPE"):
+        assert version in TESTED_VERSIONS
 
 
 @fixtures.parametrize(
