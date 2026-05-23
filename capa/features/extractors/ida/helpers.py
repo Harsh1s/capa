@@ -242,9 +242,9 @@ def read_bytes_at(ea: int, count: int) -> bytes:
 
     segm_end = idc.get_segm_end(ea)
     if ea + count > segm_end:
-        return idc.get_bytes(ea, segm_end - ea)
+        return ida_bytes.get_bytes(ea, segm_end - ea, gmb_flags=0) or b""
     else:
-        return idc.get_bytes(ea, count)
+        return ida_bytes.get_bytes(ea, count, gmb_flags=0) or b""
 
 
 def find_string_at(ea: int, min_: int = 4) -> str:
