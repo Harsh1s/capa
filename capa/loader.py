@@ -73,6 +73,23 @@ BACKEND_BINEXPORT2 = "binexport2"
 BACKEND_IDA = "ida"
 BACKEND_GHIDRA = "ghidra"
 
+IDA_DATABASE_EXTENSIONS = (".idb", ".i64")
+IDA_UNPACKED_DATABASE_EXTENSIONS = (".id0", ".id1", ".id2", ".nam", ".til")
+IDALIB_OPEN_DATABASE_ARGS = "-Olumina:host=0.0.0.0 -Osecondary_lumina:host=0.0.0.0"
+
+
+def has_ida_database(input_path: Path) -> bool:
+    if input_path.suffix.lower() in IDA_DATABASE_EXTENSIONS:
+        return True
+
+    return any(input_path.with_suffix(ext).exists() for ext in IDA_DATABASE_EXTENSIONS + IDA_UNPACKED_DATABASE_EXTENSIONS)
+
+
+def get_idalib_open_database_args(input_path: Path) -> str:
+    if has_ida_database(input_path):
+        return IDALIB_OPEN_DATABASE_ARGS
+    return f"{IDALIB_OPEN_DATABASE_ARGS} -R"
+
 
 class CorruptFile(ValueError):
     pass
@@ -411,7 +428,7 @@ def get_extractor(
             ret = idapro.open_database(
                 str(input_path),
                 run_auto_analysis=True,
-                args="-Olumina:host=0.0.0.0 -Osecondary_lumina:host=0.0.0.0 -R",
+                args=get_idalib_open_database_args(input_path),
             )
             if ret != 0:
                 raise RuntimeError("failed to analyze input file")
